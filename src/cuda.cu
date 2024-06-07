@@ -53,32 +53,33 @@ void Encrypt(cv::Mat& img, cv::Mat& output1, cv::Mat& output2) {
     cudaMemcpy(d_input, img.data, width * height * sizeof(unsigned char), cudaMemcpyHostToDevice);
 
     dim3 threadsPerBlock(16, 16);
-    dim3 numBlocks((width + threadsPerBlock.x - 1) / threadsPerBlock.x, (height + threadsPerBlock.y - 1) / threadsPerBlock.y);
+dim3 numBlocks((width + threadsPerBlock.x - 1) / threadsPerBlock.x, (height + threadsPerBlock.y - 1) / threadsPerBlock.y);
 
-    setupCurand<<<numBlocks, threadsPerBlock>>>(d_state, time(NULL), width, height);
-    cudaDeviceSynchronize();
+setupCurand<<<numBlocks, threadsPerBlock>>>(d_state, time(NULL), width, height);
+cudaDeviceSynchronize();
 
-    cudaEvent_t start, stop;
-    cudaEventCreate(&start);
-    cudaEventCreate(&stop);
+cudaEvent_t start, stop;
+cudaEventCreate(&start);
+cudaEventCreate(&stop);
 
-    cudaEventRecord(start);
-    EncryptKernel<<<numBlocks, threadsPerBlock>>>(d_input, d_output1, d_output2, width, height, d_state);
-    cudaEventRecord(stop);
+cudaEventRecord(start);
+EncryptKernel<<<numBlocks, threadsPerBlock>>>(d_input, d_output1, d_output2, width, height, d_state);
 
-    cudaEventSynchronize(stop);
-    float milliseconds = 0;
-    cudaEventElapsedTime(&milliseconds, start, stop);
+cudaMemcpy(output1.data, d_output1, width * height * sizeof(unsigned char), cudaMemcpyDeviceToHost);
+cudaMemcpy(output2.data, d_output2, width * height * sizeof(unsigned char), cudaMemcpyDeviceToHost);
 
-    printf("Encryption time elapsed: %f ms\n", milliseconds);
+cudaEventRecord(stop);
+cudaEventSynchronize(stop);
 
-    cudaMemcpy(output1.data, d_output1, width * height * sizeof(unsigned char), cudaMemcpyDeviceToHost);
-    cudaMemcpy(output2.data, d_output2, width * height * sizeof(unsigned char), cudaMemcpyDeviceToHost);
+float milliseconds = 0;
+cudaEventElapsedTime(&milliseconds, start, stop);
 
-    cudaFree(d_input);
-    cudaFree(d_output1);
-    cudaFree(d_output2);
-    cudaFree(d_state);
+printf("Total time elapsed: %f ms\n", milliseconds);
+
+cudaFree(d_input);
+cudaFree(d_output1);
+cudaFree(d_output2);
+cudaFree(d_state);
 }
 
 void Decrypt(cv::Mat& input1, cv::Mat& input2, cv::Mat& output) {

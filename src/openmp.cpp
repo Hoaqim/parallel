@@ -4,26 +4,51 @@
 #include <omp.h>
 
 void Encrypt(cv::Mat& img, cv::Mat& output1, cv::Mat& output2) {
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<> dis(0, 255);
+    int rows = img.rows;
+    int cols = img.cols;
 
-    #pragma omp parallel for collapse(2)
-    for (int y = 0; y < img.rows; ++y) {
-        for (int x = 0; x < img.cols; ++x) {
-            int rand = dis(gen);
+    std::vector<unsigned char> randomNumbers(rows * cols);
 
-            output1.at<unsigned char>(y, x) = rand;
-            output2.at<unsigned char>(y, x) = img.at<unsigned char>(y, x) ^ rand;
+    #pragma omp parallel
+    {
+        std::random_device rd;
+        std::mt19937 gen(rd() + omp_get_thread_num());
+        std::uniform_int_distribution<> dis(0, 255);
+
+        #pragma omp for
+        for (int i = 0; i < rows * cols; ++i) {
+            randomNumbers[i] = dis(gen);
         }
     }
+
+    auto start = std::chrono::high_resolution_clock::now();
+
+    #pragma omp parallel for
+    for (int y = 0; y < rows; ++y) {
+        for (int x = 0; x < cols; ++x) {
+            int idx = y * cols + x;
+            unsigned char rand = randomNumbers[idx];
+            unsigned char pixel = img.data[idx];
+
+            output1.data[idx] = rand;
+            output2.data[idx] = pixel ^ rand;
+        }
+    }
+
+    auto stop = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start);
+    std::cout << "Main loop time elapsed: " << duration.count() << " ms\n";
 }
 
 void Decrypt(cv::Mat& input1, cv::Mat& input2, cv::Mat& output) {
-    #pragma omp parallel for collapse(2)
-    for (int y = 0; y < input1.rows; ++y) {
-        for (int x = 0; x < input1.cols; ++x) {
-            output.at<unsigned char>(y, x) = input1.at<unsigned char>(y, x) ^ input2.at<unsigned char>(y, x);
+    int rows = input1.rows;
+    int cols = input1.cols;
+
+    #pragma omp parallel for
+    for (int y = 0; y < rows; ++y) {
+        for (int x = 0; x < cols; ++x) {
+            int idx = y * cols + x;
+            output.data[idx] = input1.data[idx] ^ input2.data[idx];
         }
     }
 }
